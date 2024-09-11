@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using Microsoft.AspNetCore.HttpOverrides;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Transforms;
 using Yarp.ReverseProxy.Transforms.Builder;
@@ -12,10 +13,6 @@ internal class Program
     {
         var webappbuilder = WebApplication.CreateBuilder(args);
         webappbuilder.Configuration.AddUserSecrets<Program>();
-
-        webappbuilder.Host
-            .UseWindowsService()
-            .UseSystemd();
 
         var config = webappbuilder.Configuration;
         var pathbase = config.GetValue<string>("PathBase") ?? string.Empty;
@@ -57,7 +54,16 @@ internal class Program
                 });
             });
 
+        webappbuilder.Services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders =
+                ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.KnownNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
+
         var app = webappbuilder.Build();
+        app.UseForwardedHeaders();
         app.MapReverseProxy();
         app.UsePathBase(pathbase);
 
